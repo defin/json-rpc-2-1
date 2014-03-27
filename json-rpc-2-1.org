@@ -1,0 +1,72 @@
+* 2.1
+It is RECOMMENDED that all JSON-RPC 2.1 communication occur over HTTPS.  Server implementations MAY choose to deny unencrypted communication.
+
+All requests from the client are sent to the server via HTTP POST.
+
+* method names:
+  method names follow the pattern:
+  moduleName1[.moduleNameN].methodName
+  where the module and names are defined by the server according to its own architecture
+  module "rpc" is reserved for methods implemented by the rpc server, either as standard or as extension
+
+* request frame format:
+  JSON-encoded document with the following keys:
+   the server MUST ignore all entries in the request that begin with _.  These are typically sent by the client when debugging is    enabled.
+  - method: a string naming the method to be called
+  - params: an array of 0 or more positional parameters, or an object representing a collection of named parameters
+  - auth: null until user logged in, then is an opaque string of whatever the server wants to use for an auth token
+  - id: starts from 0 and incremented by client for each message sent.  each response from server will have id of request.
+  - jsonrpc: always '2.1'
+
+* response frame format:
+  JSON-encoded document with the following keys:
+   the client MUST ignore all entries in the response that begin with _.  These are typically sent by the server when debugging is    enabled.
+
+  - id: whatever the id of the request was
+  - jsonrpc: always '2.1'
+  - and either
+    - result: result of the successful call
+    - or -
+    - error: object with the following keys:
+      - message: human-readable public error string
+      - code: symbolic code for the client to case on
+      - data: machine-parseable data about the error if additional information is needed other than the code
+      - common debugging names: _message, _class, _stack
+
+* standard methods:
+required to be implemented by conforming servers.
+** rpc.login(username, passphrase, twofactor?)
+   -> authToken or null
+   Errors:
+   - InvalidCredentials
+   argument TWOFACTOR is optional, it is for an OTP key or other second auth factor if the server supports one.
+   called by a not-logged-in user to attempt to login.
+** rpc.logout()
+   -> true
+   called by a logged-in user to invalidate the auth token in the request
+** rpc.loggedIn()
+   -> true or false
+   server returns indicating whether the auth token in the request is still logged in.  returns false for invalid or missing auth token.
+** rpc.accessLevel()
+   -> string representing rpc access level
+
+
+* Auth
+components of auth token:
+- username
+- auth level
+- expiration timestamp
+- padding
+- hmac
+
+* standard errors (rename!)
+** InvalidCredentials: returned by rpc.login when invalid username and/or password is processed
+** NotLoggedIn: user is not logged in and must be to perform this action.  This is needed as a signal to the client to pop up a login screen, which InsufficientAccess does not achieve.
+** InsufficientAccess: logged-in user has not enough access to perform method
+** InvalidMethod: method not found
+** InvalidParameters: wrong arguments to method
+
+** InvalidFrame: JSON-RPC frame is corrupt
+** InternalError: generic catch-all error of last resort (rename ServiceUnavailable so its like a 500)
+* JSONP
+Support for running JSON-RPC 2.1 over JSONP is accomodated by:
